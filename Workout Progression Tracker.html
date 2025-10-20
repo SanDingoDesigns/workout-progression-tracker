@@ -1,0 +1,1472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Progression Tracker</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+
+/* ===== BASE STYLES - Inherited from original Cyberpunk theme for structure ===== */
+:root{
+  /* The variables below are mostly overridden by the Halloween theme,
+     but are kept here for the base structure. */
+  --bg-0:#06070b;
+  --bg-1:#080a12;
+  --panel:#0e0f1a;
+  --panel-2:#0a0b15;
+  --text-0:#e9f2ff;
+  --text-1:#b7c3db;
+  --muted:#7f8aa4;
+  --cya:#00e5ff;
+  --mag:#ff2bd6;
+  --yel:#ffd700;
+  --primary:#00e5ff;
+  --accent:#ff2bd6;
+  --danger:#ff3b55;
+  --warning:#ffc857;
+  --ok:#31ffa6;
+  --border:1px solid rgba(255,255,255,.10);
+  --radius:14px;
+  --shadow:0 18px 48px rgba(0,0,0,.55);
+}
+
+/* Base layout */
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  margin:0; padding:0; color:var(--text-0);
+  /* Removing original cyberpunk background */
+  background: var(--bg-0);
+}
+
+/* Subtle Animated Grid (Removed Cyberpunk animation) */
+body::before{
+  /* This is now handled by the Halloween theme below */
+  content:none;
+}
+@keyframes gridShift{ to{ transform: translate3d(-24px,-24px,0) } }
+
+.container{ display:flex; min-height:100vh; position:relative }
+
+/* Sidebar */
+#exercise-sidebar{
+  width:260px;
+  background:
+    linear-gradient(180deg, rgba(10,12,22,.95), rgba(6,7,14,.95));
+  border-right: var(--border);
+  color:var(--text-0); padding:1rem;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.06);
+}
+#exercise-sidebar .sidebar-title{
+  margin:0 0 .75rem; font-size:.95rem; letter-spacing:.12em; text-transform:uppercase;
+  color:var(--text-1);
+  border-bottom: 1px dashed rgba(255,255,255,.12); padding-bottom:.5rem;
+}
+.exercise-list{ list-style:none; padding:0; margin:0; max-height:calc(100vh - 220px); overflow-y:auto; scrollbar-width:thin; scrollbar-color: rgba(0,229,255,.4) transparent }
+.exercise-list li{
+  display:flex; justify-content:space-between; align-items:center;
+  padding:.6rem .75rem; margin-bottom:.35rem; cursor:pointer; border-radius:12px;
+  background: rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,.06);
+  transition: transform .08s ease, background .2s ease, box-shadow .2s ease, border-color .2s ease;
+}
+.exercise-list li:hover {
+  border-color: rgba(255,122,26,.35) !important;
+  background: #141418 !important;
+  box-shadow: none !important;
+}
+.exercise-list li.active {
+  background: linear-gradient(180deg, rgba(255,122,26,.12), rgba(122,60,255,.10)) !important;
+  border-color: rgba(255,122,26,.45) !important;
+  box-shadow: none !important;
+}
+.exercise-list .exercise-name{ flex:1 }
+.exercise-list .delete-btn{
+  background:transparent; border:none; color:var(--danger); font-size:1.2rem; line-height:1; cursor:pointer; opacity:.85;
+}
+.exercise-list .delete-btn:hover{ opacity:1; transform: scale(1.1) }
+
+#new-exercise-btn{
+  width:100%; margin-top:1rem;
+  background: conic-gradient(from 120deg at 50% 50%, var(--mag), var(--cya), var(--yel), var(--mag));
+  color:#051017; font-weight:900; letter-spacing:.02em;
+  border:none; border-radius:14px; padding:.8rem 1rem;
+  box-shadow: 0 12px 30px rgba(255,43,214,.28), 0 2px 0 rgba(255,255,255,.06) inset;
+  transition: filter .2s ease;
+}
+#new-exercise-btn:hover{ filter: brightness(1.06) }
+
+/* Header */
+#main-content{ flex:1; padding: 0 1rem 2rem }
+#main-content header{
+  background: linear-gradient(180deg, rgba(10,13,22,.9), rgba(6,8,16,.9));
+  color:var(--text-0);
+  padding:1.6rem 1.8rem; text-align:center; margin-bottom:1rem;
+  border-radius: 0 0 16px 16px; border-bottom: var(--border); box-shadow: var(--shadow);
+}
+#app-title{ font-weight:1000; letter-spacing:.01em; text-shadow: 0 0 28px rgba(0,229,255,.4) }
+.subtitle{ font-size:.92rem; color:var(--muted) }
+
+/* Panels */
+.panel{
+  background: linear-gradient(180deg, rgba(12,14,26,.92), rgba(8,10,20,.92));
+  backdrop-filter: blur(4px);
+  margin: 1rem auto; padding: 1rem 1.2rem;
+  max-width: 980px; border-radius: var(--radius);
+  border: var(--border);
+  box-shadow: var(--shadow), 0 0 50px rgba(0,229,255,.05) inset;
+}
+.hidden{ display:none !important }
+.panel h2{ margin-top:0; border-bottom:1px dashed rgba(255,255,255,.12); padding-bottom:.6rem; color:var(--text-0) }
+
+/* Fields & buttons */
+.field{ margin-bottom:.75rem; display:flex; justify-content:space-between; align-items:center; gap:.5rem }
+.field label{ flex:1 1 auto; margin-right:.5rem; font-weight:700; color:var(--text-1) }
+.field input[type=number], .modal-form input[type=text]{
+  width:160px; padding:.6rem .75rem; background:#090b13; color:var(--text-0);
+  border:1px solid rgba(255,255,255,.12); border-radius:12px; outline:none;
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+.field input[type=number]:focus, .modal-form input[type=text]:focus{
+  border-color: rgba(0,229,255,.75);
+  box-shadow: 0 0 0 3px rgba(0,229,255,.25);
+}
+
+.button-group{ display:flex; justify-content:space-between; gap:.75rem; margin-top:1.1rem; flex-wrap:wrap }
+button{
+  padding:.75rem 1.2rem; border:none; border-radius: 14px; cursor:pointer; font-size:.95rem; font-weight:900;
+  transition: transform .08s ease, filter .2s ease, box-shadow .2s ease; letter-spacing:.02em;
+}
+button:active{ transform: translateY(1px) }
+
+button.primary{
+  background: linear-gradient(90deg, var(--cya) 0%, var(--mag) 100%);
+  color:#03060a; box-shadow: 0 10px 28px rgba(0,229,255,.28);
+}
+button.primary:hover:not(:disabled){ filter: brightness(1.08) }
+button.warning{ background: linear-gradient(90deg, #ffd166, #ff9f1c); color:#1b1305 }
+button.warning:hover:not(:disabled){ filter: brightness(1.06) }
+button.danger{ background: linear-gradient(90deg,#ff6b7d,#ff3b55); color:#fff }
+button.danger:hover:not(:disabled){ filter: brightness(1.06) }
+button.ghost{ background:#0a0d15; color:#ced7ef; border:1px solid rgba(255,255,255,.12) }
+button.ghost:hover:not(:disabled){ box-shadow: 0 0 0 2px rgba(206,215,239,.12) inset }
+button:disabled{ opacity:.55; cursor:not-allowed }
+
+/* Session */
+#status{ font-size:1.2rem; font-weight:900; margin:.8rem 0; text-align:center; color: var(--ok); text-transform:uppercase; letter-spacing:.06em }
+#timer-display{
+  font-size:3.7rem; font-weight:1000; text-align:center; margin:.25rem 0 .65rem;
+  color: var(--primary); text-shadow: 0 0 36px rgba(0,229,255,.45), 0 0 6px rgba(0,229,255,.55);
+}
+#set-info{ text-align:center; font-size:.97rem; margin-bottom:.75rem; color:var(--text-1) }
+.history-list{ list-style:none; padding:0; margin:0; max-height:240px; overflow-y:auto; scrollbar-width:thin; scrollbar-color: rgba(0,229,255,.35) transparent }
+.history-list li{ border-bottom:1px dashed rgba(255,255,255,.12); padding:.6rem 0; font-size:.92rem }
+
+/* Charts — explicit fixed heights to prevent runaway scroll */
+#dashboard-chart{ display:block; width:100% !important; height:220px !important; max-height:220px }
+#progress-chart{ display:block; width:100% !important; height:320px !important; max-height:320px }
+#chart-panel{ max-height: 440px; overflow-y:auto }
+
+/* Pills */
+.pill{
+  background: linear-gradient(90deg, rgba(0,229,255,.28), rgba(255,43,214,.28));
+  color:#e7fbff; padding:.3rem .85rem; border-radius:999px; font-size:.84rem; font-weight:900;
+  border:1px solid rgba(0,229,255,.45);
+}
+
+/* Weighted inputs */
+.weighted-inputs{ display:flex; align-items:center; gap:.6rem; justify-content:center; margin:.5rem 0 }
+.weighted-inputs label{ font-weight:800; color:var(--text-1) }
+.weighted-inputs input{ width:100px; padding:.55rem .7rem; background:#090b13; color:var(--text-0); border:1px solid rgba(255,255,255,.12); border-radius:12px }
+
+/* Sound controls */
+.sound-controls{ display:flex; gap:1rem; align-items:center }
+.sound-controls .toggle, .sound-controls .volume{ display:inline-flex; align-items:center; gap:.5rem; color:var(--text-1) }
+.sound-controls input[type=range]{ width:160px }
+
+/* Dashboard cards */
+.cards{ display:grid; grid-template-columns: repeat(5, minmax(120px,1fr)); gap:.9rem; margin-bottom:1rem }
+.card{
+  background: linear-gradient(180deg, rgba(16,18,32,.92), rgba(10,12,24,.92));
+  border:1px solid rgba(255,255,255,.12); border-radius:16px; padding:.95rem 1.05rem; text-align:center;
+  box-shadow: 0 8px 22px rgba(0,0,0,.55), inset 0 0 22px rgba(0,229,255,.07);
+}
+.card-label{ font-size:.8rem; color:var(--muted); letter-spacing:.08em; text-transform:uppercase }
+.card-value{ font-size:1.7rem; font-weight:1000; color:#f1f7ff; text-shadow: 0 0 22px rgba(0,229,255,.25) }
+.mt{ margin-top:.85rem }
+
+/* Modal */
+dialog::backdrop{ background: rgba(4,6,12,.8) }
+dialog{
+  border:none; border-radius:18px; width:480px; max-width: calc(100% - 1rem);
+  padding:0; box-shadow: var(--shadow);
+  background: linear-gradient(180deg, rgba(14,16,28,.96), rgba(8,10,20,.96));
+  color:var(--text-0); border: 1px solid rgba(255,255,255,.12);
+}
+.modal-form{ padding: 1rem 1.25rem }
+.modal-form h3{ margin:0 0 .75rem; border-bottom:1px dashed rgba(255,255,255,.12); padding-bottom:.5rem }
+.modal-form .stack{ display:grid; gap:.3rem; margin:.5rem 0 }
+.modal-form .row{ display:flex; align-items:center; gap:.5rem }
+.modal-actions{ display:flex; justify-content:flex-end; gap:.5rem; margin-top:.8rem }
+.modal-content{ padding: 1rem 1.25rem }
+.modal-content h3{ margin:0 0 .75rem; border-bottom:1px dashed rgba(255,255,255,.12); padding-bottom:.5rem }
+
+/* Responsive */
+@media (max-width: 900px){ .cards{ grid-template-columns: repeat(3, 1fr) } }
+@media (max-width: 680px){
+  .container{ flex-direction:column }
+  #exercise-sidebar{ width:100%; max-height:260px; overflow-y:auto }
+  #main-content header{ padding-top:1.2rem }
+  .cards{ grid-template-columns: repeat(2, 1fr) }
+  .sound-controls{ flex-direction:column; align-items:flex-start }
+}
+
+</style>
+
+<style id="halloween-overrides">
+/* ==== Halloween Theme (static, no animations) ==== */
+/* Palette: pumpkin orange, witch purple, slime green, matte charcoal base */
+:root{
+  --hall-bg:#0b0b0d;
+  --hall-panel:#121216;
+  --hall-panel-2:#16161c;
+  --hall-text:#eaeaf2;
+  --hall-text-2:#b9bcc9;
+  --pumpkin:#ff7a1a;
+  --ember:#ff5607;
+  --witch:#7a3cff;
+  --slime:#45e37a;
+  --blood:#ff3b55;
+  --border-soft: 1px solid rgba(255,122,26,.20);
+  --border-strong: 1px solid rgba(255,122,26,.35);
+  /* Map core variables to Halloween palette */
+  --primary: var(--pumpkin);
+  --accent: var(--witch);
+  --ok: var(--slime);
+  --danger: var(--blood);
+  --warning: #ffb366; /* A slightly subdued orange-yellow */
+  --text-0: var(--hall-text);
+  --text-1: var(--hall-text-2);
+}
+
+/* Base */
+html, body { background: var(--hall-bg) !important; color: var(--hall-text); }
+body { position: relative; overflow-x: hidden; }
+
+/* Static subtle pattern: faint diagonal candy stripes (very low opacity) */
+body::before{
+  content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
+  background:
+    repeating-linear-gradient(45deg,
+      rgba(255,122,26,.06) 0 8px,
+      transparent 8px 28px),
+    repeating-linear-gradient(-45deg,
+      rgba(122,60,255,.04) 0 10px,
+      transparent 10px 30px);
+  opacity:.55;
+}
+body::after{ content:none !important; }
+
+/* Layout layering */
+.container{ position: relative; z-index: 1; }
+
+/* Sidebar & Panels */
+#exercise-sidebar,
+#main-content header,
+.panel,
+.card,
+dialog {
+  background: var(--hall-panel) !important;
+  background-image: none !important;
+  color: var(--hall-text);
+  border: var(--border-soft);
+  box-shadow: 0 10px 26px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,255,255,.02);
+}
+#main-content header{ background: var(--hall-panel-2) !important; border-bottom: var(--border-strong) }
+
+/* Text accents */
+.subtitle, .card-label, .field label { color: var(--hall-text-2) !important; }
+#app-title{ color: var(--hall-text) !important; text-shadow: none !important; }
+
+/* List items */
+.exercise-list li{
+  background: #0f0f12 !important;
+  border: 1px solid rgba(255,255,255,.06) !important;
+}
+.exercise-list li:hover {
+  border-color: rgba(255,122,26,.35) !important;
+  background: #141418 !important;
+  box-shadow: none !important;
+}
+.exercise-list li.active {
+  background: linear-gradient(180deg, rgba(255,122,26,.12), rgba(122,60,255,.10)) !important;
+  border-color: rgba(255,122,26,.45) !important;
+  box-shadow: none !important;
+}
+
+/* Inputs */
+.field input[type=number],
+.modal-form input[type=text],
+.weighted-inputs input {
+  background: #0e0e11 !important;
+  color: var(--hall-text) !important;
+  border: 1px solid rgba(255,255,255,.12) !important;
+}
+.field input[type=number]:focus,
+.modal-form input[type=text]:focus {
+  border-color: rgba(255,122,26,.65) !important;
+  box-shadow: 0 0 0 3px rgba(255,122,26,.20) !important;
+}
+
+/* Buttons */
+button.primary{
+  background: linear-gradient(90deg, var(--pumpkin), var(--ember)) !important;
+  color:#170a03 !important;
+  box-shadow: 0 10px 24px rgba(255,122,26,.25) !important;
+}
+button.primary:hover:not(:disabled){ filter: brightness(1.06) !important; }
+
+button.warning{
+  background: linear-gradient(90deg, #ffd166, #ffb366) !important;
+  color:#2b1a07 !important;
+}
+
+button.danger{
+  background: linear-gradient(90deg, #ff6b7d, var(--blood)) !important;
+  color:#fff !important;
+}
+
+button.ghost{
+  background: #141418 !important;
+  color: var(--hall-text) !important;
+  border: 1px solid rgba(255,255,255,.12) !important;
+}
+button:disabled{ opacity:.6 !important; cursor:not-allowed !important }
+
+/* Pills & chips */
+.pill{
+  background: linear-gradient(90deg, rgba(255,122,26,.22), rgba(122,60,255,.22)) !important;
+  color: #ffe9d7 !important;
+  border: 1px solid rgba(255,122,26,.35) !important;
+}
+
+/* Status & Timer */
+#status{ color: var(--slime) !important; }
+#timer-display{ color: #ffd7b0 !important; text-shadow: none !important; }
+
+/* Charts */
+#dashboard-chart, #progress-chart{
+  background:#0f0f12 !important;
+  border:1px solid rgba(255,255,255,.08) !important;
+  border-radius:10px !important;
+}
+#dashboard-chart{ height:220px !important; max-height:220px !important; }
+#progress-chart{  height:320px !important; max-height:320px !important; }
+#chart-panel{ max-height: 440px; overflow-y:auto }
+
+/* Modal backdrop */
+dialog::backdrop{ background: rgba(0,0,0,.75) !important }
+</style>
+
+</head>
+<body>
+  <div class="container">
+    <aside id="exercise-sidebar">
+      <h2 class="sidebar-title">Exercises</h2>
+      <ul id="exercise-list" class="exercise-list"></ul>
+      <button id="new-exercise-btn" class="primary" onclick="openNewExerciseModal()">+ New Exercise</button>
+    </aside>
+
+    <div id="main-content">
+      <header>
+        <h1 id="app-title">Progression Tracker</h1>
+        <p class="subtitle">Track time- or weight-based sessions. Local-first. No sign-in required.</p>
+      </header>
+
+      <section id="dashboard" class="panel">
+        <h2>Overview</h2>
+        <div class="cards">
+          <div class="card"><div class="card-label">Exercises</div><div class="card-value" id="db-exercises">0</div></div>
+          <div class="card"><div class="card-label">Total Sessions</div><div class="card-value" id="db-sessions">0</div></div>
+          <div class="card"><div class="card-label">Last Session</div><div class="card-value" id="db-last">—</div></div>
+          <div class="card"><div class="card-label">Best Timed Max</div><div class="card-value" id="db-best-time">—</div></div>
+          <div class="card"><div class="card-label">Best Working Weight</div><div class="card-value" id="db-best-weight">—</div></div>
+        </div>
+        <h3 class="mt">Recent Activity</h3>
+        <canvas id="dashboard-chart" height="140"></canvas>
+      </section>
+
+      <section id="welcome-message" class="panel hidden">
+        <h2>Welcome!</h2>
+        <p>Select an exercise on the left or create a new one. Each exercise can be <strong>Timed</strong> or <strong>Weighted</strong>.</p>
+      </section>
+
+      <section id="settings-panel" class="panel hidden">
+        <h2>Settings</h2>
+        <div class="field"><label>Exercise Type</label><div><span id="exercise-type-label" class="pill">—</span></div></div>
+
+        <div id="timed-settings" class="settings-block hidden">
+          <div class="field"><label for="tested-max">Tested max (seconds)</label><input id="tested-max" type="number" min="1"></div>
+          <div class="field"><label for="target-percent">Target % of max</label><input id="target-percent" type="number" min="1" max="100"></div>
+          <div class="field"><label for="t-sets-per-session">Sets per session</label><input id="t-sets-per-session" type="number" min="1"></div>
+          <div class="field"><label for="t-rest-seconds">Rest between sets (s)</label><input id="t-rest-seconds" type="number" min="1"></div>
+          <div class="field"><label for="t-max-increment">Max increment %</label><input id="t-max-increment" type="number" min="0" value="5"></div>
+          <div class="field"><label for="t-deload-percent">Deload %</label><input id="t-deload-percent" type="number" min="0" value="10"></div>
+          <div class="field"><label>Sounds</label>
+            <div class="sound-controls">
+              <label class="toggle"><input type="checkbox" id="sound-enabled"><span>Enable sounds</span></label>
+              <label class="volume"><span>Volume</span><input type="range" id="sound-volume" min="0" max="1" step="0.05"></label>
+            </div>
+          </div>
+        </div>
+
+        <div id="weighted-settings" class="settings-block hidden">
+          <div class="field"><label for="w-working-weight">Working weight (kg)</label><input id="w-working-weight" type="number" min="0" step="0.5"></div>
+          <div class="field"><label for="w-reps-target">Reps target (per set)</label><input id="w-reps-target" type="number" min="1"></div>
+          <div class="field"><label for="w-sets-per-session">Sets per session</label><input id="w-sets-per-session" type="number" min="1"></div>
+          <div class="field"><label for="w-rest-seconds">Rest between sets (s)</label><input id="w-rest-seconds" type="number" min="0" value="0"></div>
+          <div class="field"><label for="w-increment-percent">Increment % (on success)</label><input id="w-increment-percent" type="number" min="0" value="2.5"></div>
+          <div class="field"><label for="w-deload-percent">Deload % (on failure)</label><input id="w-deload-percent" type="number" min="0" value="5"></div>
+        </div>
+
+        <button id="save-settings" class="primary">Save Settings</button>
+      </section>
+
+      <section id="session-panel" class="panel hidden">
+        <h2>Session</h2>
+        <p id="set-info"></p>
+        <ul id="current-set-list" class="history-list"></ul>
+        <div id="status" class="status">Ready</div>
+        <div id="timer-display" class="timer">00:00</div>
+        <div id="weighted-inputs" class="weighted-inputs hidden">
+          <label for="w-reps-actual">Reps this set</label>
+          <input id="w-reps-actual" type="number" min="0" step="1" value="0"/>
+          <button id="w-complete-set" class="primary">Complete Set</button>
+          <button id="w-fail-set" class="danger">Fail Set</button>
+        </div>
+        <div id="session-buttons" class="button-group">
+          <button id="start-session" class="primary">Start Session</button>
+          <button id="fail-set" class="danger" disabled>Fail Set</button>
+          <button id="pause-btn" class="warning" disabled>Pause</button>
+          <button id="skip-rest-btn" disabled>Skip Rest</button>
+          <button id="stop-session" class="danger" disabled>Stop</button>
+          <button id="reset-session" class="ghost">Reset</button>
+        </div>
+      </section>
+
+      <section id="history-panel" class="panel hidden">
+        <h2>History</h2>
+        <ul id="history-list" class="history-list"></ul>
+        <button id="clear-history" class="danger">Clear History</button>
+      </section>
+
+      <section id="chart-panel" class="panel hidden">
+        <h2 id="chart-title">Progress Chart</h2>
+        <canvas id="progress-chart"></canvas>
+      </section>
+    </div>
+  </div>
+
+  <dialog id="new-exercise-modal">
+    <form method="dialog" id="new-exercise-form" class="modal-form">
+      <h3>Create Exercise</h3>
+      <label class="stack">
+        <span>Exercise name</span>
+        <input id="new-ex-name" name="name" type="text" required placeholder="e.g., Plank, 5K Run">
+      </label>
+
+      <fieldset class="stack">
+        <legend>Type</legend>
+        <label class="row"><input type="radio" name="type" value="timed" checked> Timed (duration + rest)</label>
+        <label class="row"><input type="radio" name="type" value="weighted"> Weighted (weight × reps)</label>
+      </fieldset>
+
+      <div class="modal-actions">
+        <button type="button" class="ghost" onclick="document.getElementById('new-exercise-modal').close()">Cancel</button>
+        <button id="create-ex-btn" type="submit" value="default" class="primary">Create</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="confirmation-modal">
+    <div class="modal-content">
+        <h3 id="confirm-title">Confirm Action</h3>
+        <p id="confirm-message">Are you sure you want to proceed?</p>
+        <div class="modal-actions">
+            <button id="confirm-cancel" class="ghost">Cancel</button>
+            <button id="confirm-ok" class="danger">Confirm & Clear</button>
+        </div>
+    </div>
+  </dialog>
+
+
+  <script>
+// Progression Tracker: standalone final (using Tone.js for sound)
+const SOUND_KEY = 'dh_sound_settings', EX_KEY = 'dh_exercises_v2', CUR_KEY = 'dh_current';
+const clamp = (n, a, b) => Math.min(b, Math.max(a, n));
+const fmt = s => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+const nowISO = () => new Date().toISOString();
+const defTimed = () => ({ type: 'timed', settings: { testedMax: 30, targetPercent: 80, setsPerSession: 4, restSeconds: 90, maxIncrement: 5, deloadPercent: 10 }, history: [] });
+const defWeighted = () => ({ type: 'weighted', settings: { workingWeight: 20, repsTarget: 8, setsPerSession: 4, restSeconds: 0, incrementPercent: 2.5, deloadPercent: 5 }, history: [] });
+const loadExercises = () => { try { const s = localStorage.getItem(EX_KEY); return s ? JSON.parse(s) : []; } catch { return [] } };
+const saveExercises = arr => localStorage.setItem(EX_KEY, JSON.stringify(arr));
+const loadCurrentIndex = () => { const s = localStorage.getItem(CUR_KEY); return s === null ? null : parseInt(s, 10) };
+const saveCurrentIndex = i => i === null ? localStorage.removeItem(CUR_KEY) : localStorage.setItem(CUR_KEY, i);
+
+// --- TONE.JS SOUND IMPLEMENTATION ---
+const TONES = {};
+let isAudioContextReady = false;
+
+let soundCfg = (() => { try { const s = localStorage.getItem(SOUND_KEY); return s ? JSON.parse(s) : { enabled: true, volume: 0.6 } } catch { return { enabled: true, volume: 0.6 } } })();
+const setSoundCfg = v => localStorage.setItem(SOUND_KEY, JSON.stringify(v));
+
+// Initialize Tone.js components
+function initializeTone() {
+    if (isAudioContextReady) return;
+    try {
+        // DDR-like synth: Use Sawtooth for a slightly harsher, more arcade sound
+        TONES.poly = new Tone.PolySynth(Tone.Synth, {
+            oscillator: { type: "sawtooth" },
+            envelope: {
+                attack: 0.005,
+                decay: 0.1,
+                sustain: 0.0,
+                release: 0.1
+            }
+        }).toDestination();
+        
+        // Noise source for sharp hits/whooshes
+        TONES.noise = new Tone.NoiseSynth({
+            noise: { type: "white" },
+            envelope: {
+                attack: 0.001,
+                decay: 0.2,
+                sustain: 0.0,
+                release: 0.2
+            }
+        }).toDestination();
+        
+        // Wait for user interaction to start the context
+        if (Tone.context.state !== 'running') {
+            document.addEventListener('click', () => {
+                if (Tone.context.state !== 'running') {
+                    Tone.start().then(() => {
+                        isAudioContextReady = true;
+                        console.log("Audio Context Started.");
+                    });
+                }
+            }, { once: true });
+        } else {
+             isAudioContextReady = true;
+        }
+    } catch (e) {
+        console.error("Tone.js failed to initialize:", e);
+    }
+}
+
+function initSounds() {
+    initializeTone(); // Attempt to initialize/prime context
+    
+    const chk = document.getElementById('sound-enabled');
+    const vol = document.getElementById('sound-volume');
+
+    if (chk) chk.checked = !!soundCfg.enabled;
+    if (vol) vol.value = soundCfg.volume;
+
+    chk?.addEventListener('change', () => { soundCfg.enabled = chk.checked; setSoundCfg(soundCfg); });
+    vol?.addEventListener('input', () => { soundCfg.volume = +vol.value; setSoundCfg(soundCfg); });
+}
+
+function playSound(name) {
+    if (!soundCfg.enabled || !isAudioContextReady || !TONES.poly) return;
+    
+    // Convert volume (0 to 1) to Tone.js decibels (approx 0 to -24)
+    const dbVolume = (Math.max(0.1, soundCfg.volume) * 20) - 20; 
+    
+    switch (name) {
+        case 'countdown_beep': // Short, sharp warning beep
+            TONES.poly.triggerAttackRelease("G5", "32n", Tone.now(), dbVolume);
+            break;
+            
+        case 'start_ding': // A quick, high-pitched "GO!" sound (ascending two-note)
+            const nowDing = Tone.now();
+            TONES.poly.triggerAttackRelease("C6", "16n", nowDing, dbVolume);
+            TONES.poly.triggerAttackRelease("E6", "8n", nowDing + 0.05, dbVolume);
+            break;
+            
+        case 'rest_chime': // A simple, lower frequency chime
+            TONES.poly.triggerAttackRelease("C4", "8n", Tone.now(), dbVolume);
+            break;
+            
+        case 'finish_fanfare': // DDR/Arcade Success Fanfare (Ascending Arpeggio + Noise Burst)
+            if (!TONES.noise) return;
+            const nowFanfare = Tone.now();
+            
+            // 1. Noise Burst (DDR "Max Combo" style hit)
+            TONES.noise.triggerAttackRelease("8n", nowFanfare, dbVolume + 5); 
+            
+            // 2. Ascending three-note arpeggio (C Major)
+            TONES.poly.triggerAttackAttackRelease("C6", "16n", nowFanfare + 0.1, dbVolume);
+            TONES.poly.triggerAttackRelease("E6", "16n", nowFanfare + 0.2, dbVolume);
+            TONES.poly.triggerAttackRelease("G6", "4n", nowFanfare + 0.3, dbVolume);
+            break;
+    }
+}
+// --- END SOUND IMPLEMENTATION ---
+
+let exercises = [], currentIndex = null, session = null, progressChart = null, dashboardChart = null;
+
+function renderExerciseList() {
+    const list = document.getElementById('exercise-list');
+    list.innerHTML = '';
+    exercises.forEach((ex, i) => {
+        const li = document.createElement('li');
+        if (i === currentIndex) li.classList.add('active');
+        const name = document.createElement('span');
+        name.className = 'exercise-name';
+        name.textContent = ex.name;
+        name.addEventListener('click', () => selectExercise(i));
+        const del = document.createElement('button');
+        del.className = 'delete-btn';
+        del.textContent = '×';
+        del.title = 'Delete';
+        del.addEventListener('click', e => { e.stopPropagation(); deleteExercise(i); });
+        li.appendChild(name);
+        li.appendChild(del);
+        list.appendChild(li);
+    });
+}
+
+function deleteExercise(i) {
+    // Use the custom modal instead of confirm()
+    const ex = exercises[i];
+    if (!ex) return;
+
+    const modal = document.getElementById('confirmation-modal');
+    document.getElementById('confirm-title').textContent = 'Confirm Delete';
+    document.getElementById('confirm-message').innerHTML = `Are you sure you want to **delete** the exercise <span style="font-weight:bold; color:#ef4444;">'${ex.name}'</span> and **ALL** its history? This cannot be undone.`;
+    document.getElementById('confirm-ok').textContent = 'Delete Forever';
+    
+    // Temporarily set the action listener for this specific delete
+    const okHandler = () => {
+        modal.close();
+        
+        exercises.splice(i, 1);
+        saveExercises(exercises);
+        if (currentIndex === i) {
+            currentIndex = null;
+            saveCurrentIndex(null);
+            showDashboard()
+        } else if (currentIndex !== null && currentIndex > i) {
+            currentIndex--;
+            saveCurrentIndex(currentIndex)
+        }
+        renderExerciseList();
+        renderHistory();
+        renderChart();
+        renderDashboard();
+        
+        // Clean up event listener
+        document.getElementById('confirm-ok').removeEventListener('click', okHandler);
+    };
+
+    document.getElementById('confirm-ok').addEventListener('click', okHandler);
+    document.getElementById('confirm-cancel').onclick = () => modal.close();
+    
+    modal.showModal();
+}
+
+function showDashboard() {
+    currentIndex = null;
+    saveCurrentIndex(null);
+    renderExerciseList();
+    document.getElementById('app-title').textContent = 'Progression Tracker';
+    document.getElementById('dashboard').classList.remove('hidden');
+    ['welcome-message', 'settings-panel', 'session-panel', 'history-panel', 'chart-panel'].forEach(id => document.getElementById(id).classList.add('hidden'));
+    resetSession();
+    renderDashboard();
+}
+
+function renderDashboard() {
+    const exs = exercises || [];
+    document.getElementById('db-exercises').textContent = exs.length;
+    let total = 0, last = null, bestTime = null, bestWeight = null;
+    const activity = {};
+
+    exs.forEach(ex => {
+        const hist = ex.history || [];
+        total += hist.length;
+        hist.forEach(h => {
+            const d = new Date(h.date);
+            if (!last || d > last) last = d;
+
+            if (ex.type === 'timed') {
+                if (bestTime === null || (h.newMax || 0) > bestTime) bestTime = h.newMax || 0
+            } else {
+                if (bestWeight === null || (h.newWeight || 0) > bestWeight) bestWeight = h.newWeight || 0
+            }
+
+            const key = d.toISOString().slice(0, 10);
+            if (activity[key]) activity[key]++;
+            else activity[key] = 1;
+        });
+    });
+
+    document.getElementById('db-sessions').textContent = total;
+    document.getElementById('db-last').textContent = last ? last.toLocaleDateString() : '—';
+    document.getElementById('db-best-time').textContent = bestTime !== null ? `${bestTime}s` : '—';
+    document.getElementById('db-best-weight').textContent = bestWeight !== null ? `${bestWeight}kg` : '—';
+
+    // Chart logic
+    if (dashboardChart) dashboardChart.destroy();
+    const sortedDates = Object.keys(activity).sort();
+    const last14Dates = sortedDates.slice(-14);
+    const chartLabels = last14Dates.map(d => new Date(d).toLocaleDateString().slice(0, -5));
+    const chartData = last14Dates.map(d => activity[d] || 0);
+
+    const ctx = document.getElementById('dashboard-chart').getContext('2d');
+    dashboardChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: chartLabels,
+            datasets: [{
+                label: 'Sessions Completed',
+                data: chartData,
+                backgroundColor: 'rgba(59, 130, 246, 0.6)',
+                borderColor: 'rgba(59, 130, 246, 1)',
+                borderWidth: 1,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: { beginAtZero: true, ticks: { precision: 0 } },
+                x: { grid: { display: false } }
+            },
+            plugins: { legend: { display: false } }
+        }
+    });
+}
+
+function selectExercise(i) {
+    if (i < 0 || i >= exercises.length) { showDashboard(); return }
+    currentIndex = i;
+    saveCurrentIndex(i);
+    renderExerciseList();
+    const ex = exercises[i];
+    document.getElementById('app-title').textContent = ex.name;
+
+    // Show panels for selected exercise
+    document.getElementById('dashboard').classList.add('hidden');
+    document.getElementById('welcome-message').classList.add('hidden');
+    document.getElementById('settings-panel').classList.remove('hidden');
+    document.getElementById('session-panel').classList.remove('hidden');
+    document.getElementById('history-panel').classList.remove('hidden');
+    document.getElementById('chart-panel').classList.remove('hidden');
+
+    document.getElementById('exercise-type-label').textContent = ex.type === 'timed' ? 'Timed' : 'Weighted';
+    document.getElementById('timed-settings').classList.toggle('hidden', ex.type !== 'timed');
+    document.getElementById('weighted-settings').classList.toggle('hidden', ex.type !== 'weighted');
+    document.getElementById('weighted-inputs').classList.add('hidden');
+
+    // Reset session UI for new exercise
+    resetSession();
+    
+    // Populate form and render content
+    populateSettingsForm();
+    renderHistory();
+    renderChart();
+}
+
+function openNewExerciseModal() {
+    const dlg = document.getElementById('new-exercise-modal');
+    document.getElementById('new-ex-name').value = '';
+    dlg.showModal();
+}
+
+function handleCreateExercise(e) {
+    e?.preventDefault();
+    const name = (document.getElementById('new-ex-name').value || '').trim();
+    if (!name) { 
+        // Using console.error instead of alert due to development best practices
+        console.error('Please enter a name'); 
+        return 
+    }
+    const type = [...document.querySelectorAll('input[name="type"]')].find(r => r.checked)?.value || 'timed';
+    document.getElementById('new-exercise-modal').close();
+    createExercise(name, type);
+}
+
+function createExercise(name, type) {
+    if (exercises.some(e => e.name.toLowerCase() === name.toLowerCase())) {
+        console.error('An exercise with that name already exists.');
+        return
+    }
+    const base = (type === 'timed') ? defTimed() : defWeighted();
+    exercises.push({ name, type, settings: base.settings, history: [] });
+    saveExercises(exercises);
+    renderExerciseList();
+    selectExercise(exercises.length - 1);
+    renderDashboard();
+}
+
+function populateSettingsForm() {
+    const ex = exercises[currentIndex];
+    if (!ex) return;
+
+    if (ex.type === 'timed') {
+        const s = ex.settings;
+        document.getElementById('tested-max').value = s.testedMax ?? '';
+        document.getElementById('target-percent').value = s.targetPercent ?? '';
+        document.getElementById('t-sets-per-session').value = s.setsPerSession ?? '';
+        document.getElementById('t-rest-seconds').value = s.restSeconds ?? '';
+        document.getElementById('t-max-increment').value = s.maxIncrement ?? '';
+        document.getElementById('t-deload-percent').value = s.deloadPercent ?? '';
+    } else {
+        const s = ex.settings;
+        document.getElementById('w-working-weight').value = s.workingWeight ?? '';
+        document.getElementById('w-reps-target').value = s.repsTarget ?? '';
+        document.getElementById('w-sets-per-session').value = s.setsPerSession ?? '';
+        document.getElementById('w-rest-seconds').value = s.restSeconds ?? '';
+        document.getElementById('w-increment-percent').value = s.incrementPercent ?? '';
+        document.getElementById('w-deload-percent').value = s.deloadPercent ?? '';
+    }
+}
+
+function handleSaveSettings() {
+    const ex = exercises[currentIndex];
+    if (!ex) return;
+
+    if (ex.type === 'timed') {
+        ex.settings = {
+            testedMax: +document.getElementById('tested-max').value || 1,
+            targetPercent: +document.getElementById('target-percent').value || 1,
+            setsPerSession: parseInt(document.getElementById('t-sets-per-session').value, 10) || 1,
+            restSeconds: parseInt(document.getElementById('t-rest-seconds').value, 10) || 0,
+            maxIncrement: +document.getElementById('t-max-increment').value || 0,
+            deloadPercent: +document.getElementById('t-deload-percent').value || 0
+        };
+    } else {
+        ex.settings = {
+            workingWeight: +document.getElementById('w-working-weight').value || 0,
+            repsTarget: parseInt(document.getElementById('w-reps-target').value, 10) || 1,
+            setsPerSession: parseInt(document.getElementById('w-sets-per-session').value, 10) || 1,
+            restSeconds: parseInt(document.getElementById('w-rest-seconds').value, 10) || 0,
+            incrementPercent: +document.getElementById('w-increment-percent').value || 0,
+            deloadPercent: +document.getElementById('w-deload-percent').value || 0
+        };
+    }
+
+    // Ensure state is updated/persisted
+    saveExercises(exercises);
+    // Refresh history and chart in case settings changed
+    renderHistory();
+    renderChart();
+    
+    // Simple visual feedback
+    document.getElementById('save-settings').textContent = 'Saved!';
+    setTimeout(() => { document.getElementById('save-settings').textContent = 'Save Settings'; }, 1000);
+}
+
+function loadHistory() {
+    const ex = exercises[currentIndex];
+    return ex ? (ex.history || []) : []
+}
+
+function saveHistory(hist) {
+    if (currentIndex === null) return;
+    exercises[currentIndex].history = hist;
+    saveExercises(exercises);
+    renderDashboard()
+}
+
+function renderHistory() {
+    const list = document.getElementById('history-list');
+    list.innerHTML = '';
+    const ex = exercises[currentIndex];
+    if (!ex) { list.innerHTML = '<li>No exercise selected.</li>'; return }
+
+    const history = loadHistory().slice().reverse(); // Show newest first
+    if (history.length === 0) { list.innerHTML = '<li>No sessions yet.</li>'; return }
+
+    history.forEach(h => {
+        const li = document.createElement('li');
+        const dateStr = new Date(h.date).toLocaleDateString();
+
+        if (ex.type === 'timed') {
+            const status = h.stoppedEarly ? '— STOPPED EARLY' : (h.successfulSets === h.setsAttempted ? '— SUCCESS' : '— FAILURE');
+            li.textContent = `${dateStr} — Sets: ${h.successfulSets}/${h.setsAttempted}, Max: ${h.prevMax}s → ${h.newMax}s ${status}`;
+        } else {
+            const status = h.successfulSets === h.setsAttempted ? '— SUCCESS' : '— FAILURE';
+            const details = h.setResults ? 
+                h.setResults.map(r => `${r.reps}/${r.target}r`).join(', ') : 
+                `Sets: ${h.successfulSets}/${h.setsAttempted}`;
+            li.textContent = `${dateStr} — Weight: ${h.prevWeight}kg → ${h.newWeight}kg. Details: ${details} ${status}`;
+        }
+        list.appendChild(li);
+    });
+}
+
+/**
+ * REPLACED: The history clearing logic is now triggered by a separate confirmed action from the modal.
+ * This function now only launches the modal.
+ */
+function openClearHistoryModal() {
+    if (!exercises[currentIndex]) {
+        console.error("No exercise selected or invalid index.");
+        return;
+    }
+
+    const exName = exercises[currentIndex].name;
+    const modal = document.getElementById('confirmation-modal');
+    document.getElementById('confirm-title').textContent = 'Confirm Clear History';
+    document.getElementById('confirm-message').innerHTML = `Are you absolutely sure you want to clear **ALL** session history for <span style="font-weight:bold; color:#ef4444;">'${exName}'</span>? This action cannot be reversed.`;
+    document.getElementById('confirm-ok').textContent = 'Yes, Clear History';
+    
+    // Set up the OK button to call the core clearing function
+    document.getElementById('confirm-ok').onclick = confirmedClearHistory;
+    document.getElementById('confirm-cancel').onclick = () => modal.close();
+    
+    modal.showModal();
+}
+
+/**
+ * NEW: Core function called ONLY after confirmation via the modal.
+ */
+function confirmedClearHistory() {
+    const ex = exercises[currentIndex];
+    if (!ex) return; // Should not happen if modal check works
+
+    document.getElementById('confirmation-modal').close();
+    
+    // 1. Reset any active session
+    stopSession(); 
+
+    // 2. Clear the history array in the global state
+    ex.history = [];
+    
+    // 3. Persist the change to localStorage
+    saveExercises(exercises);
+
+    // 4. Rerender UI components
+    renderHistory();
+    renderChart();
+    renderDashboard();
+}
+
+function renderChart() {
+    const ex = exercises[currentIndex];
+    const chartPanel = document.getElementById('chart-panel');
+    if (!ex) { chartPanel.classList.add('hidden'); return }
+
+    const history = loadHistory();
+    if (history.length === 0) { chartPanel.classList.add('hidden'); return }
+
+    chartPanel.classList.remove('hidden');
+    document.getElementById('chart-title').textContent = `${ex.name} Progress Chart`;
+
+    const labels = history.map((h, i) => new Date(h.date).toLocaleDateString());
+    let data, label;
+
+    if (ex.type === 'timed') {
+        data = history.map(h => h.newMax);
+        label = 'Max seconds';
+    } else {
+        data = history.map(h => h.newWeight);
+        label = 'Working weight (kg)';
+    }
+
+    if (progressChart) progressChart.destroy();
+
+    const ctx = document.getElementById('progress-chart').getContext('2d');
+    progressChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: label,
+                data: data,
+                fill: false,
+                borderColor: '#3b82f6',
+                tension: 0.1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: { beginAtZero: false }
+            },
+            plugins: {
+                tooltip: { mode: 'index', intersect: false }
+            }
+        }
+    });
+}
+
+
+function resetSession() {
+    if (session?.intervalId) clearInterval(session.intervalId);
+    session = null;
+    document.getElementById('status').textContent = 'Ready';
+    document.getElementById('timer-display').textContent = '00:00';
+    document.getElementById('set-info').textContent = '';
+    document.getElementById('current-set-list').innerHTML = '';
+
+    // Hide weighted inputs
+    document.getElementById('weighted-inputs').classList.add('hidden');
+
+    // Button states
+    document.getElementById('start-session').disabled = false;
+    document.getElementById('fail-set').disabled = true; // Timed fail button
+    document.getElementById('pause-btn').disabled = true;
+    document.getElementById('skip-rest-btn').disabled = true;
+    document.getElementById('stop-session').disabled = true;
+    document.getElementById('w-complete-set').disabled = true; // Weighted buttons
+    document.getElementById('w-fail-set').disabled = true; // Weighted buttons
+}
+
+function startSession() {
+    const ex = exercises[currentIndex];
+    if (!ex) { console.error('Select an exercise first.'); return }
+    // Ensure Tone.js is initialized when session starts (user interaction)
+    initializeTone(); 
+    if (ex.type === 'timed') startTimed(ex);
+    else startWeighted(ex);
+}
+
+// --- TIMED SESSION LOGIC ---
+const PRE = 3;
+function startTimed(ex) {
+    const s = ex.settings;
+    const target = Math.max(1, Math.round(s.testedMax * (s.targetPercent / 100)));
+    session = { type: 'timed', settings: s, setIndex: 0, successfulSets: 0, setDurations: [], phase: 'idle', remaining: 0, running: true, intervalId: null, targetSeconds: target, paused: false };
+    
+    // Disable/Enable correct buttons
+    document.getElementById('start-session').disabled = true;
+    document.getElementById('pause-btn').disabled = false;
+    document.getElementById('stop-session').disabled = false;
+    
+    runNextTimed()
+}
+
+function runNextTimed() {
+    if (!session || !session.running) return;
+    const total = session.settings.setsPerSession;
+    if (session.setIndex >= total) return finishTimed();
+    
+    session.setIndex++;
+    document.getElementById('set-info').textContent = `Set ${session.setIndex} of ${total} — Target: ${session.targetSeconds} seconds`;
+    session.phase = 'pre';
+    session.remaining = PRE;
+    document.getElementById('status').textContent = 'Get Ready (Start in)';
+    document.getElementById('timer-display').textContent = fmt(session.remaining);
+    document.getElementById('skip-rest-btn').disabled = true;
+    
+    playSound('countdown_beep');
+    startIntervalTimed();
+}
+
+function startIntervalTimed() {
+    if (session.intervalId) clearInterval(session.intervalId);
+    session.paused = false;
+    document.getElementById('pause-btn').textContent = 'Pause';
+    
+    session.intervalId = setInterval(() => {
+        if (session.paused) return;
+        
+        session.remaining--;
+        if (session.remaining >= 0) {
+            document.getElementById('timer-display').textContent = fmt(session.remaining);
+        }
+
+        if (session.phase === 'pre' && session.remaining > 0) {
+            playSound('countdown_beep');
+        }
+
+        if (session.remaining <= 0) {
+            clearInterval(session.intervalId);
+            session.intervalId = null;
+
+            if (session.phase === 'pre') {
+                startTimedHang();
+            } else if (session.phase === 'hang') {
+                completeTimedSet(session.targetSeconds, true); // Success, duration is target
+            } else if (session.phase === 'rest') {
+                runNextTimed();
+            }
+        }
+    }, 1000);
+}
+
+function startTimedHang() {
+    session.phase = 'hang';
+    session.remaining = session.targetSeconds;
+    document.getElementById('status').textContent = 'WORK: HOLD/PERFORM';
+    document.getElementById('fail-set').disabled = false;
+    document.getElementById('skip-rest-btn').disabled = true;
+    document.getElementById('timer-display').textContent = fmt(session.remaining);
+    playSound('start_ding');
+    startIntervalTimed();
+}
+
+function failTimedSet() {
+    if (!session || !session.running || session.type !== 'timed' || session.phase !== 'hang') return;
+    const actual = Math.max(0, session.targetSeconds - session.remaining);
+    if (session.intervalId) { clearInterval(session.intervalId); session.intervalId = null }
+    completeTimedSet(actual, false);
+}
+
+function completeTimedSet(duration, success) {
+    session.setDurations.push(duration);
+    
+    const li = document.createElement('li');
+    li.textContent = `Set ${session.setIndex}: ${duration}s ${success ? '(✔)' : '(✗)'}`;
+    document.getElementById('current-set-list').appendChild(li);
+
+    if (success) session.successfulSets++;
+
+    document.getElementById('fail-set').disabled = true;
+    
+    if (session.setIndex >= session.settings.setsPerSession) {
+        return finishTimed()
+    }
+
+    // Start rest
+    session.phase = 'rest';
+    session.remaining = session.settings.restSeconds;
+    document.getElementById('status').textContent = 'Rest (Next Set in)';
+    document.getElementById('skip-rest-btn').disabled = false;
+    document.getElementById('timer-display').textContent = fmt(session.remaining);
+    playSound('rest_chime');
+    
+    startIntervalTimed();
+}
+
+function skipRest() {
+    if (!session || !session.running || session.phase !== 'rest') return;
+    if (session.intervalId) { clearInterval(session.intervalId); session.intervalId = null }
+    runNextTimed();
+}
+
+function finishTimed() {
+    session.running = false;
+    session.phase = 'finished';
+    if (session.intervalId) { clearInterval(session.intervalId); session.intervalId = null }
+
+    document.getElementById('status').textContent = 'Finished!';
+    document.getElementById('start-session').disabled = false;
+    document.getElementById('pause-btn').disabled = true;
+    document.getElementById('skip-rest-btn').disabled = true;
+    document.getElementById('stop-session').disabled = true;
+    playSound('finish_fanfare');
+
+    const ex = exercises[currentIndex];
+    const s = session.settings;
+    let newMax = s.testedMax;
+
+    if (session.successfulSets === s.setsPerSession) {
+        // Successful: Increment max
+        const increment = newMax * (s.maxIncrement / 100);
+        newMax = Math.round(newMax + increment);
+    } else if (session.successfulSets === 0) {
+        // Total failure: Deload
+        const deload = newMax * (s.deloadPercent / 100);
+        newMax = Math.round(Math.max(1, newMax - deload));
+    }
+    // Partial success = stay at current max
+
+    const prevMax = ex.settings.testedMax;
+    ex.settings.testedMax = newMax;
+
+    const hist = ex.history || [];
+    hist.push({ date: nowISO(), setsAttempted: s.setsPerSession, successfulSets: session.successfulSets, setDurations: session.setDurations, prevMax, newMax, stoppedEarly: false });
+    ex.history = hist;
+    saveHistory(hist);
+    
+    populateSettingsForm();
+    renderHistory();
+    renderChart();
+}
+
+
+// --- WEIGHTED SESSION LOGIC ---
+function startWeighted(ex) {
+    const s = ex.settings;
+    session = { type: 'weighted', settings: s, setIndex: 0, successfulSets: 0, setResults: [], phase: 'work', remaining: 0, running: true, intervalId: null, paused: false };
+    
+    // Disable/Enable correct buttons
+    document.getElementById('start-session').disabled = true;
+    document.getElementById('pause-btn').disabled = false;
+    document.getElementById('stop-session').disabled = false;
+    document.getElementById('w-complete-set').disabled = false;
+    document.getElementById('w-fail-set').disabled = false;
+    document.getElementById('weighted-inputs').classList.remove('hidden');
+    
+    // Pre-populate actual reps with target
+    document.getElementById('w-reps-actual').value = s.repsTarget; 
+
+    runNextWeighted();
+}
+
+function runNextWeighted() {
+    if (!session || !session.running) return;
+    
+    const total = session.settings.setsPerSession;
+    
+    // Check if session is actually finished before incrementing
+    if (session.setIndex >= total) return finishWeighted();
+    
+    session.setIndex++;
+    document.getElementById('set-info').textContent = `Set ${session.setIndex} of ${total} — Target: ${session.settings.repsTarget} reps @ ${session.settings.workingWeight}kg`;
+    document.getElementById('status').textContent = 'Perform set';
+    document.getElementById('skip-rest-btn').disabled = true;
+    document.getElementById('w-complete-set').disabled = false;
+    document.getElementById('w-fail-set').disabled = false;
+    
+    // Ensure timer display is off during work
+    document.getElementById('timer-display').textContent = '00:00'; 
+    try { playSound('start_ding') } catch {}
+}
+
+function weightedCompleteSet() {
+    if (!session || !session.running || session.type !== 'weighted') return;
+    const actualReps = parseInt(document.getElementById('w-reps-actual').value, 10) || 0;
+    const targetReps = session.settings.repsTarget;
+    const success = actualReps >= targetReps;
+
+    session.setResults.push({ reps: actualReps, target: targetReps, weight: session.settings.workingWeight, success: success });
+    
+    const li = document.createElement('li');
+    li.textContent = `Set ${session.setIndex}: ${actualReps} reps @ ${session.settings.workingWeight}kg ${success ? '(✔)' : '(✗)'}`;
+    document.getElementById('current-set-list').appendChild(li);
+
+    if (success) session.successfulSets++;
+
+    // Prepare for next set or finish
+    if (session.setIndex >= session.settings.setsPerSession) {
+        return finishWeighted();
+    }
+    
+    // Start rest period
+    startWeightedRest();
+}
+
+function weightedFailSet() {
+    // Treat "Fail Set" as user explicitly did not complete the target (even if reps > 0)
+    // The history will still show the recorded reps.
+    if (!session || !session.running || session.type !== 'weighted') return;
+    
+    const actualReps = parseInt(document.getElementById('w-reps-actual').value, 10) || 0;
+    const targetReps = session.settings.repsTarget;
+    
+    // Record as failure regardless of actual reps value
+    session.setResults.push({ reps: actualReps, target: targetReps, weight: session.settings.workingWeight, success: false });
+
+    const li = document.createElement('li');
+    li.textContent = `Set ${session.setIndex}: ${actualReps} reps @ ${session.settings.workingWeight}kg (✗ Fail)`;
+    document.getElementById('current-set-list').appendChild(li);
+
+    // Prepare for next set or finish
+    if (session.setIndex >= session.settings.setsPerSession) {
+        return finishWeighted();
+    }
+    
+    // Start rest period
+    startWeightedRest();
+}
+
+function startWeightedRest() {
+    const s = session.settings;
+    document.getElementById('w-reps-actual').value = s.repsTarget; // Reset input for next set
+    
+    session.phase = 'rest';
+    session.remaining = s.restSeconds;
+    document.getElementById('status').textContent = 'Rest (Next Set in)';
+    document.getElementById('skip-rest-btn').disabled = false;
+    document.getElementById('w-complete-set').disabled = true;
+    document.getElementById('w-fail-set').disabled = true;
+    
+    document.getElementById('timer-display').textContent = fmt(session.remaining);
+    playSound('rest_chime');
+    
+    if (session.remaining <= 0) {
+        // Skip rest if 0 seconds
+        runNextWeighted();
+    } else {
+        startIntervalWeighted();
+    }
+}
+
+function startIntervalWeighted() {
+    if (session.intervalId) clearInterval(session.intervalId);
+    session.paused = false;
+    document.getElementById('pause-btn').textContent = 'Pause';
+    
+    session.intervalId = setInterval(() => {
+        if (session.paused) return;
+        session.remaining--;
+        document.getElementById('timer-display').textContent = fmt(Math.max(0, session.remaining));
+        if (session.remaining <= 0) {
+            clearInterval(session.intervalId);
+            session.intervalId = null;
+            runNextWeighted();
+        }
+    }, 1000);
+}
+
+function finishWeighted() {
+    session.running = false;
+    session.phase = 'finished';
+    if (session.intervalId) { clearInterval(session.intervalId); session.intervalId = null }
+
+    document.getElementById('status').textContent = 'Finished!';
+    document.getElementById('start-session').disabled = false;
+    document.getElementById('pause-btn').disabled = true;
+    document.getElementById('skip-rest-btn').disabled = true;
+    document.getElementById('stop-session').disabled = true;
+    document.getElementById('weighted-inputs').classList.add('hidden');
+    playSound('finish_fanfare');
+
+    const ex = exercises[currentIndex];
+    const s = session.settings;
+    let newWeight = s.workingWeight;
+    
+    // Check for overall success/failure
+    const allSuccessful = session.successfulSets === s.setsPerSession;
+
+    // Progression logic: 
+    if (allSuccessful) {
+        newWeight = newWeight * (1 + (s.incrementPercent / 100));
+    } else {
+        newWeight = newWeight * (1 - (s.deloadPercent / 100));
+    }
+    
+    // Round to nearest 0.5kg
+    newWeight = Math.round(newWeight / 0.5) * 0.5;
+    if (newWeight < 0.5) newWeight = 0.5;
+
+    const prevWeight = ex.settings.workingWeight;
+    ex.settings.workingWeight = newWeight;
+
+    // Log the history with the set results
+    const hist = ex.history || [];
+    hist.push({
+        date: nowISO(),
+        setsAttempted: s.setsPerSession,
+        successfulSets: session.successfulSets,
+        setResults: session.setResults || [],
+        prevWeight,
+        newWeight,
+        stoppedEarly: false
+    });
+    ex.history = hist;
+    saveHistory(hist);
+    
+    // Rerender to show new weight and history
+    populateSettingsForm();
+    renderHistory();
+    renderChart();
+}
+
+function togglePause() {
+    if (!session || !session.running) return;
+
+    if (session.paused) {
+        session.paused = false;
+        document.getElementById('pause-btn').textContent = 'Pause';
+        if (session.type === 'timed' || (session.type === 'weighted' && session.phase === 'rest')) {
+             // Restart the timer interval
+            if (!session.intervalId) {
+                if (session.type === 'timed') startIntervalTimed();
+                else startIntervalWeighted();
+            }
+        }
+    } else {
+        session.paused = true;
+        document.getElementById('pause-btn').textContent = 'Resume';
+    }
+}
+
+function stopSession() {
+    if (!session) return;
+    
+    if (session.intervalId) { clearInterval(session.intervalId); session.intervalId = null }
+    
+    const ex = exercises[currentIndex];
+    if (!ex) { resetSession(); return }
+
+    const attempted = Math.max(0, session.setIndex);
+    const success = session.successfulSets || 0;
+
+    // Only log if at least one set was attempted
+    if (attempted > 0) {
+        if (session.type === 'timed') {
+            // Log "Stopped Early" session
+            const prevMax = ex.settings.testedMax;
+            const newMax = prevMax; // No change in max if stopped early
+            const hist = ex.history || [];
+            hist.push({ date: nowISO(), setsAttempted: attempted, successfulSets: success, prevMax, newMax, stoppedEarly: true });
+            ex.history = hist;
+        } else {
+            // Log "Stopped Early" session for weighted
+            const prevWeight = ex.settings.workingWeight;
+            const newWeight = prevWeight; // No change in weight if stopped early
+            const hist = ex.history || [];
+            hist.push({
+                date: nowISO(),
+                setsAttempted: attempted,
+                successfulSets: success,
+                setResults: session.setResults || [],
+                prevWeight,
+                newWeight,
+                stoppedEarly: true
+            });
+            ex.history = hist;
+        }
+        saveExercises(exercises);
+        renderHistory();
+        renderChart();
+    }
+    
+    resetSession();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    exercises = loadExercises();
+    renderExerciseList();
+    
+    const idx = loadCurrentIndex();
+    if (exercises.length && idx !== null && exercises[idx]) selectExercise(idx);
+    else showDashboard();
+    
+    initSounds();
+
+    // Event Listeners
+    document.getElementById('new-exercise-form').addEventListener('submit', handleCreateExercise);
+    document.getElementById('save-settings').addEventListener('click', handleSaveSettings);
+    document.getElementById('start-session').addEventListener('click', startSession);
+    document.getElementById('fail-set').addEventListener('click', failTimedSet);
+    document.getElementById('pause-btn').addEventListener('click', togglePause);
+    document.getElementById('skip-rest-btn').addEventListener('click', skipRest);
+    document.getElementById('stop-session').addEventListener('click', stopSession);
+    document.getElementById('reset-session').addEventListener('click', resetSession);
+    
+    // ATTACH NEW MODAL TRIGGER
+    document.getElementById('clear-history').addEventListener('click', openClearHistoryModal);
+
+    // Weighted Session Buttons
+    document.getElementById('w-complete-set').addEventListener('click', weightedCompleteSet);
+    document.getElementById('w-fail-set').addEventListener('click', weightedFailSet);
+
+    // Initial check for sound setup
+    document.addEventListener('click', initializeTone, { once: true });
+    
+});
+  </script>
+</body>
+</html>
