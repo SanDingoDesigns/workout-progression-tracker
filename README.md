@@ -72,7 +72,7 @@ This version removes the “glow” effect for a more subtle Halloween aesthetic
 
 ## 🪩 Credits
 
-Created by **Alexander Williams**  
+Created by **San Dingo**  
 Built with ❤️ for self-tracking progress and seasonal flair.
 
 ---
